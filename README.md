@@ -11,8 +11,7 @@
   - `nbody_brute_force.c`: nbody simulation using the brute-force algorithm (O(nxn))
   - `nbody_tools.c/.h`: general helper functons for nbody simulation, as well as node manipulation functions for barnes-hut
   - `particles.log`: file containing a set of particles to simulate
-  - `ui.c/.h`: X11-based display implementation.
-  - `xstuff.c/.h`: more X11-based display implementation.
+  - `ui.c/.h` and `xstuff.c/.h`: X11-based display implementation.
 - Parallelization approach (Brute Force)
   - MPI: No root process / Have multiple processes, with each process computing all forces applied to a set of particles / At each step, data will be broadcasted between all processes so that next step processing might begin.
 - Parallelization approach (Barnes Hut)
