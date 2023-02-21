@@ -1,5 +1,6 @@
 # INF560-Project
 - Selected Project: Particle Interaction
+- Main target: Data parallelism -> Separate data between processes in MPI, OpenMP, NVIDIA CUDA
 
 ---
 
