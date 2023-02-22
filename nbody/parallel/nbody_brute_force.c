@@ -193,18 +193,18 @@ int main(int argc, char **argv)
   struct timeval t1, t2;
   gettimeofday(&t1, NULL);
 
-  MPI_Init(&argc, &argv);
-  int N;
-  int rank;
-  MPI_Comm_size(MPI_COMM_WORLD, &N);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  printf("Rank: %d/%d\n", rank, N);
-  printf("Particles amount: %d\n", nparticles);
+  //MPI_Init(&argc, &argv);
+  //int N;
+  //int rank;
+  //MPI_Comm_size(MPI_COMM_WORLD, &N);
+  //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  //printf("Rank: %d/%d\n", rank, N);
+  //printf("Particles amount: %d\n", nparticles);
 
   /* Main thread starts simulation ... */
   run_simulation();
 
-  MPI_Finalize();
+  //MPI_Finalize();
 
   gettimeofday(&t2, NULL);
 
