@@ -1,7 +1,7 @@
 # INF560-Project
 - Selected Project: Particle Interaction
 - Main target: Data parallelism -> Separate data between processes in MPI, OpenMP, NVIDIA CUDA
-
+- Main decomposition: START ALWAYS WITH MPI, then OpenMP, then GPU
 ---
 
 ### Discussion from Wednesday 18th Jan.
@@ -20,3 +20,4 @@
 
 
 BEST CUDA APPROACH: 1 MPI RANK PER COMPUTE NODE, USE STREAMS WITH OPENMP TO AVOID SERIALIZATION
+ONLY WORTH IT TO USE CUDA PARALLELIZATION FOR A LARGE ENOUGH DATA SIZE
