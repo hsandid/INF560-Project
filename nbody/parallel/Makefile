@@ -22,4 +22,4 @@ nbody_barnes_hut: nbody_barnes_hut.o $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< $(VERBOSE) $(DISPLAY) $(DUMP)
 clean:
-	rm -f *.o $(TARGET)
+	rm -f *.o *.log $(TARGET) 

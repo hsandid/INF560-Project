@@ -105,7 +105,7 @@ void all_move_particles(double step)
   // double *partsBuffer = malloc(sizeof(double)*2*(nparticles/N));
   // double *partsBufferRecv = malloc(sizeof(double)*2*((nparticles/N)*N));
   double *partsBuffer = (double *) malloc(sizeof(double)*2*(nparticles/N));
-  double *partsBufferRecv = (double *) malloc(sizeof(double)*10*((nparticles)));
+  double *partsBufferRecv = (double *) malloc(sizeof(double)*2*((nparticles/N)*N));
 
 
   
@@ -114,8 +114,8 @@ void all_move_particles(double step)
   //particle_force partSend[nparticles];
   // END MPI
 
-  //for (i = (nparticles/N)*(rank); i < (nparticles/N)*(rank+1)-1; i++) // Need to divide evenly between MPI ranks
-  for (i = 0; i < nparticles; i++)
+  for (i = (nparticles/N)*(rank); i < (nparticles/N)*(rank+1); i++) // Need to divide evenly between MPI ranks
+  //for (i = 0; i < nparticles; i++)
   {
     int j;
     particles[i].x_force = 0; // Set force x and y applied on particles[i] to zero
@@ -126,20 +126,23 @@ void all_move_particles(double step)
       /* compute the force of particle j on particle i */
       compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
     }
+    partsBuffer[k] = particles[i].x_force;
+    partsBuffer[k+1] = particles[i].y_force;
+    k+=2;
   }
 
   
-  for (i = (nparticles/N)*(rank); i < (nparticles/N)*(rank+1); i++)
-  {
-    partsBuffer[k] = particles[i].x_force;
-    partsBuffer[k+1] = particles[i].y_force;
-    if(rank==3)
-    {
-      //printf("%f %f VS %f %f\n",particles[i].x_force,particles[i].y_force,partsBuffer[k],partsBuffer[k+1]);
-    }
+  // for (i = (nparticles/N)*(rank); i < (nparticles/N)*(rank+1); i++)
+  // {
+  //   partsBuffer[k] = particles[i].x_force;
+  //   partsBuffer[k+1] = particles[i].y_force;
+  //   if(rank==3)
+  //   {
+  //     //printf("%f %f VS %f %f\n",particles[i].x_force,particles[i].y_force,partsBuffer[k],partsBuffer[k+1]);
+  //   }
     
-    k+=2;
-  }
+    
+  // }
 
  // printf("K VALUE: %d\n", k);
   // for(k=nparticles/N-5;k<nparticles/N;k+=2)
@@ -148,22 +151,22 @@ void all_move_particles(double step)
   // }
   
 
-  // if(nparticles%N!=0)
-  // {
-  //   //printf("Range Imperfect: [%d,%d[ untouched\n", (nparticles/N)*(N) ,nparticles);
-  //    for (i = (nparticles/N)*(N); i < nparticles; i++) // Need to divide evenly between MPI ranks
-  //   {
-  //     int j;
-  //     particles[i].x_force = 0; // Set force x and y applied on particles[i] to zero
-  //     particles[i].y_force = 0; //
-  //     for (j = 0; j < nparticles; j++) // Sum up all forces applied on particles[i]
-  //     {
-  //       particle_t *p = &particles[j];
-  //       /* compute the force of particle j on particle i */
-  //       compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
-  //     }
-  //   }
-  // }
+  if(nparticles%N!=0)
+  {
+    //printf("Range Imperfect: [%d,%d[ untouched\n", (nparticles/N)*(N) ,nparticles);
+     for (i = (nparticles/N)*(N); i < nparticles; i++) // Need to divide evenly between MPI ranks
+    {
+      int j;
+      particles[i].x_force = 0; // Set force x and y applied on particles[i] to zero
+      particles[i].y_force = 0; //
+      for (j = 0; j < nparticles; j++) // Sum up all forces applied on particles[i]
+      {
+        particle_t *p = &particles[j];
+        /* compute the force of particle j on particle i */
+        compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
+      }
+    }
+  }
 
   // MPI allgather should be here, before the particles moves
   // This choice is done due to the data structure required to move data
@@ -192,23 +195,26 @@ void all_move_particles(double step)
   {
     //particles[i].x_force = partsBufferRecv[i*2];
     //particles[i].y_force = partsBufferRecv[i*2+1];
-     if(rank==3)
-    {
+    //if(rank==3)
+    //{
      //printf("%f \n",partsBufferRecv[i]);
-    }
+    //}
     //printf("%f \n",partsBufferRecv[i]);
   }
 
   for (i = 0; i < (nparticles/N)*N; i++)
   {
-    if(particles[i].x_force == partsBufferRecv[i*2] && particles[i].y_force == partsBufferRecv[i*2+1])
-    {
-      //printf("T\n");
-    }
-    else
-    {
-      printf("F\n");
-    }
+    particles[i].x_force = partsBufferRecv[i*2];
+    particles[i].y_force = partsBufferRecv[i*2+1];
+
+    // if(particles[i].x_force == partsBufferRecv[i*2] && particles[i].y_force == partsBufferRecv[i*2+1])
+    // {
+    //   //printf("T\n");
+    // }
+    // else
+    // {
+    //   printf("F\n");
+    // }
     
     //printf("%f %f VS %f %f\n",particles[i].x_force,particles[i].y_force,partsBufferRecv[i*2],partsBufferRecv[i*2+1]);
   }
@@ -351,9 +357,6 @@ int main(int argc, char **argv)
 
   struct timeval t1, t2;
   gettimeofday(&t1, NULL);
-
-  
-  
 
   // Put MPI initialization and finalization 
   // in-between main simulation function
