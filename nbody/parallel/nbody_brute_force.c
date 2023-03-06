@@ -123,7 +123,7 @@ void all_move_particles(double step)
   //For some reason, calling this fixed flakiness ????
   // FLAKY ON PARTICLES = 300
   // works on 500, 600
-  int threadNum = omp_in_parallel();
+  //int threadNum = omp_in_parallel();
 
   //printf("Threads: %d\n", threadNum);
 #pragma omp for schedule(static) private(i) 
