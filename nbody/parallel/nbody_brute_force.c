@@ -229,13 +229,13 @@ void all_move_particles(double step)
   // }
 
 // Flaky..
-// #pragma omp parallel default(none) shared(particles, partsBufferRecv, nparticles, N, step)
-//   {
+ #pragma omp parallel default(none) shared(particles, partsBufferRecv, nparticles, N, step,max_acc,max_speed,sum_speed_sq)
+   {
   //int threadNum = omp_in_parallel();
     // for schedule(static) default(none)
     // Need to divide evenly between OpenMP ranks
     //#pragma omp for private(i) schedule(static)
-    #pragma omp parallel for default(none) shared(particles, partsBufferRecv, nparticles, N) private(i) schedule(static) 
+    #pragma omp  for  private(i) schedule(static) 
     for (i = 0; i < (nparticles / N) * N; i++)
     {
       particles[i].x_force = partsBufferRecv[i * 2];
@@ -256,7 +256,7 @@ void all_move_particles(double step)
 
 /* then move all particles and return statistics */
 //#pragma omp for 
-   #pragma omp parallel for default(none) shared(particles,step,nparticles,max_acc,max_speed,sum_speed_sq) private(i) schedule(static) 
+   #pragma omp  for  private(i) schedule(static) 
     for (i = 0; i < nparticles; i++)
     {
       //int threadNum = omp_in_parallel();
@@ -264,7 +264,7 @@ void all_move_particles(double step)
       // particles[i].y_force = partsBufferRecv[i*2+1];
       move_particle(&particles[i], step);
     }
-  //}
+  }
   }
 
 /* display all the particles */
