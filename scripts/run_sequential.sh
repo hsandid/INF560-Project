@@ -5,8 +5,9 @@ source set_env.sh
 #lstopo
 #sinfo
 cd ../nbody/sequential
+make clean
 make all
-./nbody_brute_force 1000 2
+./nbody_brute_force 500 2
 #./nbody_barnes_hut 1000 2
 
 #for stepCount in 2 
