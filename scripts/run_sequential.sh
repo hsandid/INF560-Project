@@ -7,7 +7,7 @@ source set_env.sh
 cd ../nbody/sequential
 make all
 ./nbody_brute_force 1000 2
-./nbody_barnes_hut 1000 2
+#./nbody_barnes_hut 1000 2
 
 #for stepCount in 2 
 #do 

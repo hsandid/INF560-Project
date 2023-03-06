@@ -369,12 +369,17 @@ int main(int argc, char **argv)
   MPI_Init(&argc, &argv);
   /* Main thread starts simulation ... */
   run_simulation();
-  MPI_Finalize();
+  
 
   gettimeofday(&t2, NULL);
 
-  double duration = (t2.tv_sec - t1.tv_sec) + ((t2.tv_usec - t1.tv_usec) / 1e6);
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if(rank==0)
+  {
+    double duration = (t2.tv_sec - t1.tv_sec) + ((t2.tv_usec - t1.tv_usec) / 1e6);
 
+  /* Are we sure that the result dump will occur in the main directory with rank zero only ? */
 #ifdef DUMP_RESULT
   FILE *f_out = fopen("particles.log", "w");
   assert(f_out);
@@ -388,6 +393,10 @@ int main(int argc, char **argv)
   printf("-----------------------------\n");
   printf("Simulation took %lf s to complete\n", duration);
   printf("-----------------------------\n");
+
+  }
+
+  MPI_Finalize();
 
 #ifdef DISPLAY
   clear_display();
