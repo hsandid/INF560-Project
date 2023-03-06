@@ -32,6 +32,10 @@ double sum_speed_sq = 0;
 double max_acc = 0;
 double max_speed = 0;
 
+/* MPI BUFFERS */
+double *partsBuffer;
+double *partsBufferRecv;
+
 void init()
 {
   /* Nothing to do */
@@ -101,13 +105,7 @@ void all_move_particles(double step)
   int rank;
   MPI_Comm_size(MPI_COMM_WORLD, &N);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  // Creating particle MPI datastructure
-  // double *partsBuffer = malloc(sizeof(double)*2*(nparticles/N));
-  // double *partsBufferRecv = malloc(sizeof(double)*2*((nparticles/N)*N));
-  double *partsBuffer = (double *) malloc(sizeof(double)*2*(nparticles/N));
-  double *partsBufferRecv = (double *) malloc(sizeof(double)*2*((nparticles/N)*N));
-
-
+  
   
   //struct Partstruct *partsBuffer = malloc(sizeof(struct Partstruct)*(nparticles/N));
   //struct Partstruct *partsBufferRecv = malloc(sizeof(struct Partstruct)*(nparticles));
@@ -175,7 +173,7 @@ void all_move_particles(double step)
   
   
 
-  printf("[]: %d to %d, with N: %d, and NDiv: %d\n",(nparticles/N)*(rank),(nparticles/N)*(rank+1)-1, 2*(nparticles/N), 2*((nparticles/N)*N));
+  //printf("[]: %d to %d, with N: %d, and NDiv: %d\n",(nparticles/N)*(rank),(nparticles/N)*(rank+1)-1, 2*(nparticles/N), 2*((nparticles/N)*N));
   MPI_Allgather(partsBuffer, (nparticles/N)*2, MPI_DOUBLE, partsBufferRecv, (nparticles/N)*2, MPI_DOUBLE, MPI_COMM_WORLD);
 
   // /* then move all particles and return statistics */
@@ -184,23 +182,23 @@ void all_move_particles(double step)
   //   move_particle(&particles[i], step);
   // }
 
-  for (i = 0; i < (nparticles/N)*2; i++)
-  {
-    //particles[i].x_force = partsBufferRecv[i*2];
-    //particles[i].y_force = partsBufferRecv[i*2+1];
-    //printf("%f \n",partsBuffer[i]);
-  }
+  // for (i = 0; i < (nparticles/N)*2; i++)
+  // {
+  //   //particles[i].x_force = partsBufferRecv[i*2];
+  //   //particles[i].y_force = partsBufferRecv[i*2+1];
+  //   //printf("%f \n",partsBuffer[i]);
+  // }
 
-  for (i = 0; i < ((nparticles*N)/N)*2; i++)
-  {
-    //particles[i].x_force = partsBufferRecv[i*2];
-    //particles[i].y_force = partsBufferRecv[i*2+1];
-    //if(rank==3)
-    //{
-     //printf("%f \n",partsBufferRecv[i]);
-    //}
-    //printf("%f \n",partsBufferRecv[i]);
-  }
+  // for (i = 0; i < ((nparticles*N)/N)*2; i++)
+  // {
+  //   //particles[i].x_force = partsBufferRecv[i*2];
+  //   //particles[i].y_force = partsBufferRecv[i*2+1];
+  //   //if(rank==3)
+  //   //{
+  //    //printf("%f \n",partsBufferRecv[i]);
+  //   //}
+  //   //printf("%f \n",partsBufferRecv[i]);
+  // }
 
   for (i = 0; i < (nparticles/N)*N; i++)
   {
@@ -227,8 +225,7 @@ void all_move_particles(double step)
     move_particle(&particles[i], step);
   }
 
-  free(partsBuffer);
-  free(partsBufferRecv);
+ 
 }
 
 /* display all the particles */
@@ -257,13 +254,10 @@ void run_simulation()
 {
   
   // DEBUG
-  int N;
-  int rank;
-  MPI_Comm_size(MPI_COMM_WORLD, &N);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  printf("Rank: %d/%d\n", rank, N);
-  printf("Particles amount: %d\n", nparticles);
+
+  // printf("Rank: %d/%d\n", rank, N);
+  // printf("Particles amount: %d\n", nparticles);
 
   /*
   int minParticlesPerRank = 50;
@@ -284,22 +278,31 @@ void run_simulation()
   }
   */
 
-  printf("Range: [%d,%d]\n", (nparticles/N)*(rank),(nparticles/N)*(rank+1)-1);
+  // printf("Range: [%d,%d]\n", (nparticles/N)*(rank),(nparticles/N)*(rank+1)-1);
 
-  if(nparticles%N!=0)
-  {
-    printf("Range Imperfect: [%d,%d[ untouched\n", (nparticles/N)*(N) ,nparticles);
-  }
-  else
-  {
-    printf("Range is a perfect Modulo!\n");
-  }
+  // if(nparticles%N!=0)
+  // {
+  //   printf("Range Imperfect: [%d,%d[ untouched\n", (nparticles/N)*(N) ,nparticles);
+  // }
+  // else
+  // {
+  //   printf("Range is a perfect Modulo!\n");
+  // }
 
   
   
   
   
   //DEBUG
+  // Creating particle MPI datastructure
+  // double *partsBuffer = malloc(sizeof(double)*2*(nparticles/N));
+  // double *partsBufferRecv = malloc(sizeof(double)*2*((nparticles/N)*N));
+  int N;
+  //int rank;
+  MPI_Comm_size(MPI_COMM_WORLD, &N);
+  //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  partsBuffer = (double *) malloc(sizeof(double)*2*(nparticles/N));
+  partsBufferRecv = (double *) malloc(sizeof(double)*2*((nparticles/N)*N));
 
   double t = 0.0, dt = 0.01;
   while (t < T_FINAL && nparticles > 0)
@@ -309,7 +312,7 @@ void run_simulation()
     /* Move particles with the current and compute rms velocity. */
     all_move_particles(dt);
 
-    printf("R: %d, T: %f, DT: %f\n",rank,t,dt);
+    //printf("R: %d, T: %f, DT: %f\n",rank,t,dt);
     /* Adjust dt based on maximum speed and acceleration--this
        simple rule tries to insure that no velocity will change
        by more than 10% */
@@ -323,6 +326,9 @@ void run_simulation()
     flush_display();
 #endif
   }
+  /* Free MPI particle buffers */
+  free(partsBuffer);
+  free(partsBufferRecv);
 }
 
 
