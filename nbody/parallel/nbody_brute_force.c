@@ -84,9 +84,13 @@ void move_particle(particle_t *p, double step)
   double speed_sq = (p->x_vel) * (p->x_vel) + (p->y_vel) * (p->y_vel);
   double cur_speed = sqrt(speed_sq);
 
-  sum_speed_sq += speed_sq;
-  max_acc = MAX(max_acc, cur_acc);
-  max_speed = MAX(max_speed, cur_speed);
+  #pragma omp critical
+  {
+    sum_speed_sq += speed_sq;
+    max_acc = MAX(max_acc, cur_acc);
+    max_speed = MAX(max_speed, cur_speed);
+  }
+  
 }
 
 /*
@@ -252,7 +256,7 @@ void all_move_particles(double step)
 
 /* then move all particles and return statistics */
 //#pragma omp for 
-   //#pragma omp parallel for default(none) shared(particles) private(i) firstprivate(step,nparticles)  schedule(static) 
+   #pragma omp parallel for default(none) shared(particles,step,nparticles,max_acc,max_speed,sum_speed_sq) private(i) schedule(static) 
     for (i = 0; i < nparticles; i++)
     {
       //int threadNum = omp_in_parallel();
