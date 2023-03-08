@@ -38,6 +38,10 @@ double max_speed = 0;
 double *partsBuffer;
 double *partsBufferRecv;
 
+/* MPI Variables */
+int N = 1;
+int rank = 0;
+
 void init()
 {
   /* Nothing to do */
@@ -54,6 +58,8 @@ extern Window theMain;      /* declared in ui.h but are also required here.   */
  */
 void compute_force(particle_t *p, double x_pos, double y_pos, double mass)
 {
+  // Parallelism Notes: No shared variable written to here
+  // NVIDIA parallelism..
   double x_sep, y_sep, dist_sq, grav_base;
 
   x_sep = x_pos - p->x_pos;
@@ -70,6 +76,8 @@ void compute_force(particle_t *p, double x_pos, double y_pos, double mass)
 /* compute the new position/velocity */
 void move_particle(particle_t *p, double step)
 {
+  // Parallelism Notes: Shared variable written to here
+  // NVIDIA parallelism..
 
   p->x_pos += (p->x_vel) * step;
   p->y_pos += (p->y_vel) * step;
@@ -104,90 +112,39 @@ void all_move_particles(double step)
   /* First calculate force for particles. */
 
   int i;
-  //int k = 0;
-  // START MPI
-  int N;
-  int rank;
-  MPI_Comm_size(MPI_COMM_WORLD, &N);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  int commonVal = (nparticles / N) * (rank);
+  // MPI-related variables
   
+  // Help normalize data region worked on from [X..Y] to [0..X-Y]
+  int commonVal = (nparticles / N) * (rank);
 
-// struct Partstruct *partsBuffer = malloc(sizeof(struct Partstruct)*(nparticles/N));
-// struct Partstruct *partsBufferRecv = malloc(sizeof(struct Partstruct)*(nparticles));
-// particle_force partSend[nparticles];
-//  END MPI
-
-// Same work for every loop iteration, no need to dynamically allocate work
-// Added collapse argument since we have a nested loop
-// collapse(1) default(none) shared(particles, partsBuffer, nparticles,N, rank) schedule(static)  firstprivate(k)
-// #pragma omp parallel for schedule(static) default(none)
 #pragma omp parallel default(none) shared(particles, partsBuffer, nparticles, N, rank,commonVal) 
 {
-  //For some reason, calling this fixed flakiness ????
-  // FLAKY ON PARTICLES = 300
-  // works on 500, 600
-  //int threadNum = omp_in_parallel();
-
-  //printf("Threads: %d\n", threadNum);
 #pragma omp for schedule(static) private(i) 
-    for (i = (nparticles / N) * (rank); i < (nparticles / N) * (rank + 1); i++) // Need to divide evenly between OpenMP ranks
-    // for (i = 0; i < nparticles; i++)
+    for (i = (nparticles / N) * (rank); i < (nparticles / N) * (rank + 1); i++)
     {
       
       int j;
-      particles[i].x_force = 0;        // Set force x and y applied on particles[i] to zero
-      particles[i].y_force = 0;        //
-      for (j = 0; j < nparticles; j++) // Sum up all forces applied on particles[i]
+      particles[i].x_force = 0;
+      particles[i].y_force = 0;
+      for (j = 0; j < nparticles; j++)
       {
         particle_t *p = &particles[j];
         /* compute the force of particle j on particle i */
         compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
       }
-      //int kvalue = (i-((nparticles / N) * (rank)))*2;
-      //int kvalue2 = kvalue+1;
-    
-      //if((kvalue != k) || (kvalue2 != k+1))
-      //{
-      //  printf("%d %d \n",k, kvalue);
-      //}
-      // partsBuffer[k] = particles[i].x_force;
-      // partsBuffer[k+1] = particles[i].y_force;
       partsBuffer[(i-commonVal)*2] = particles[i].x_force;
       partsBuffer[(i-commonVal)*2+1] = particles[i].y_force;
-      //partsBuffer[(i-commonVal)*2] = particles[i].x_force;
-      //partsBuffer[(i-commonVal)*2+1] = particles[i].y_force;
-      //k += 2;
     }
   }
 
-  // for (i = (nparticles/N)*(rank); i < (nparticles/N)*(rank+1); i++)
-  // {
-  //   partsBuffer[k] = particles[i].x_force;
-  //   partsBuffer[k+1] = particles[i].y_force;
-  //   if(rank==3)
-  //   {
-  //     //printf("%f %f VS %f %f\n",particles[i].x_force,particles[i].y_force,partsBuffer[k],partsBuffer[k+1]);
-  //   }
-
-  // }
-
-  // printf("K VALUE: %d\n", k);
-  // for(k=nparticles/N-5;k<nparticles/N;k+=2)
-  // {
-  //  printf("R: %d, X: %f, Y: %f\n",rank, partsBuffer[k],partsBuffer[k+1]);
-  // }
-
-  // No need to parallelize this one for OpenMP
   if (nparticles % N != 0)
   {
-    // printf("Range Imperfect: [%d,%d[ untouched\n", (nparticles/N)*(N) ,nparticles);
-    for (i = (nparticles / N) * (N); i < nparticles; i++) // Need to divide evenly between MPI ranks
+    for (i = (nparticles / N) * (N); i < nparticles; i++)
     {
       int j;
-      particles[i].x_force = 0;        // Set force x and y applied on particles[i] to zero
-      particles[i].y_force = 0;        //
-      for (j = 0; j < nparticles; j++) // Sum up all forces applied on particles[i]
+      particles[i].x_force = 0;
+      particles[i].y_force = 0;
+      for (j = 0; j < nparticles; j++)
       {
         particle_t *p = &particles[j];
         /* compute the force of particle j on particle i */
@@ -196,72 +153,22 @@ void all_move_particles(double step)
     }
   }
 
-  // MPI allgather should be here, before the particles moves
-  // This choice is done due to the data structure required to move data
-  // Before move_particle: We just need to compute the force
-  // After move_particle: We need force, velocity, node data structure..
-
-  // printf("[]: %d to %d, with N: %d, and NDiv: %d\n",(nparticles/N)*(rank),(nparticles/N)*(rank+1)-1, 2*(nparticles/N), 2*((nparticles/N)*N));
   MPI_Allgather(partsBuffer, (nparticles / N) * 2, MPI_DOUBLE, partsBufferRecv, (nparticles / N) * 2, MPI_DOUBLE, MPI_COMM_WORLD);
 
-  // /* then move all particles and return statistics */
-  // for (i = 0; i < nparticles; i++)
-  // {
-  //   move_particle(&particles[i], step);
-  // }
-
-  // for (i = 0; i < (nparticles/N)*2; i++)
-  // {
-  //   //particles[i].x_force = partsBufferRecv[i*2];
-  //   //particles[i].y_force = partsBufferRecv[i*2+1];
-  //   //printf("%f \n",partsBuffer[i]);
-  // }
-
-  // for (i = 0; i < ((nparticles*N)/N)*2; i++)
-  // {
-  //   //particles[i].x_force = partsBufferRecv[i*2];
-  //   //particles[i].y_force = partsBufferRecv[i*2+1];
-  //   //if(rank==3)
-  //   //{
-  //    //printf("%f \n",partsBufferRecv[i]);
-  //   //}
-  //   //printf("%f \n",partsBufferRecv[i]);
-  // }
-
-// Flaky..
  #pragma omp parallel default(none) shared(particles, partsBufferRecv, nparticles, N, step,max_acc,max_speed,sum_speed_sq)
    {
-  //int threadNum = omp_in_parallel();
-    // for schedule(static) default(none)
-    // Need to divide evenly between OpenMP ranks
-    //#pragma omp for private(i) schedule(static)
-    #pragma omp  for  private(i) schedule(static) 
+    #pragma omp for private(i) schedule(static) 
     for (i = 0; i < (nparticles / N) * N; i++)
     {
       particles[i].x_force = partsBufferRecv[i * 2];
       particles[i].y_force = partsBufferRecv[i * 2 + 1];
-
-      // if(particles[i].x_force == partsBufferRecv[i*2] && particles[i].y_force == partsBufferRecv[i*2+1])
-      // {
-      //   //printf("T\n");
-      // }
-      // else
-      // {
-      //   printf("F\n");
-      // }
-
-      // printf("%f %f VS %f %f\n",particles[i].x_force,particles[i].y_force,partsBufferRecv[i*2],partsBufferRecv[i*2+1]);
     }
-  //}
 
 /* then move all particles and return statistics */
-//#pragma omp for 
+
    #pragma omp  for  private(i) schedule(static) 
     for (i = 0; i < nparticles; i++)
     {
-      //int threadNum = omp_in_parallel();
-      // particles[i].x_force = partsBufferRecv[i*2];
-      // particles[i].y_force = partsBufferRecv[i*2+1];
       move_particle(&particles[i], step);
     }
   }
@@ -292,49 +199,6 @@ void print_all_particles(FILE *f)
 void run_simulation()
 {
 
-  // DEBUG
-
-  // printf("Rank: %d/%d\n", rank, N);
-  // printf("Particles amount: %d\n", nparticles);
-
-  /*
-  int minParticlesPerRank = 50;
-
-  if(nparticles<minParticlesPerRank)
-  {
-    printf("Less than %d particles overall!\n",minParticlesPerRank);
-    printf("Using only 1 rank...\n")
-  }
-  else
-  {
-    if(nparticles<(N*minParticlesPerRank))
-    {
-      printf("Cannot assign at least %d particles per rank!\n",minParticlesPerRank);
-      printf("Reducing number of ranks used to %d\n",nparticles/50)
-      N =
-    }
-  }
-  */
-
-  // printf("Range: [%d,%d]\n", (nparticles/N)*(rank),(nparticles/N)*(rank+1)-1);
-
-  // if(nparticles%N!=0)
-  // {
-  //   printf("Range Imperfect: [%d,%d[ untouched\n", (nparticles/N)*(N) ,nparticles);
-  // }
-  // else
-  // {
-  //   printf("Range is a perfect Modulo!\n");
-  // }
-
-  // DEBUG
-  //  Creating particle MPI datastructure
-  //  double *partsBuffer = malloc(sizeof(double)*2*(nparticles/N));
-  //  double *partsBufferRecv = malloc(sizeof(double)*2*((nparticles/N)*N));
-  int N;
-  // int rank;
-  MPI_Comm_size(MPI_COMM_WORLD, &N);
-  // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   partsBuffer = (double *)malloc(sizeof(double) * 2 * (nparticles / N));
   partsBufferRecv = (double *)malloc(sizeof(double) * 2 * ((nparticles / N) * N));
 
@@ -346,7 +210,6 @@ void run_simulation()
     /* Move particles with the current and compute rms velocity. */
     all_move_particles(dt);
 
-    // printf("R: %d, T: %f, DT: %f\n",rank,t,dt);
     /* Adjust dt based on maximum speed and acceleration--this
        simple rule tries to insure that no velocity will change
        by more than 10% */
@@ -397,18 +260,20 @@ int main(int argc, char **argv)
   // Put MPI initialization and finalization
   // in-between main simulation function
   MPI_Init(&argc, &argv);
+
+  /* Setting up MPI variables */
+  MPI_Comm_size(MPI_COMM_WORLD, &N);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   /* Main thread starts simulation ... */
   run_simulation();
 
   gettimeofday(&t2, NULL);
 
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (rank == 0)
   {
     double duration = (t2.tv_sec - t1.tv_sec) + ((t2.tv_usec - t1.tv_usec) / 1e6);
 
-    /* Are we sure that the result dump will occur in the main directory with rank zero only ? */
 #ifdef DUMP_RESULT
     FILE *f_out = fopen("particles.log", "w");
     assert(f_out);
