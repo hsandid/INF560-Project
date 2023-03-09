@@ -4,16 +4,16 @@ mydir=${PWD}
 
 for stepCount in {1..1};
 do
-    source run_parallel.sh
+    source run_parallel_bh.sh
     cd $mydir
-    source run_sequential.sh
+    source run_sequential_bh.sh
     cd $mydir
 
     echo -e "=========================="
     if cmp  "../nbody/parallel/particles.log" "../nbody/sequential/particles.log"; then
-    echo -e "BRUTE-FORCE VALID"
+    echo -e "BARNES-HUT VALID"
     else
-    echo -e "BRUTE-FORCE INVALID"
+    echo -e "BARNES-HUT INVALID"
     fi
     echo -e "=========================="
 done

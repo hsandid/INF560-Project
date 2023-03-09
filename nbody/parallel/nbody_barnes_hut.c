@@ -12,6 +12,8 @@
 #include <unistd.h>
 // Adding MPI header file
 #include <mpi.h>
+// Adding OpenMP header file
+#include <omp.h>
 
 #ifdef DISPLAY
 #include <X11/Xlib.h>
@@ -35,6 +37,14 @@ node_t *root;
 double sum_speed_sq = 0;
 double max_acc = 0;
 double max_speed = 0;
+
+/* MPI BUFFERS */
+double *partsBuffer;
+double *partsBufferRecv;
+
+/* MPI Variables */
+int N = 1;
+int rank = 0;
 
 void init() {
   init_alloc(4*nparticles);
@@ -153,10 +163,14 @@ void move_particle(particle_t*p, double step, node_t* new_root) {
   double speed_sq = (p->x_vel)*(p->x_vel) + (p->y_vel)*(p->y_vel);
   double cur_speed = sqrt(speed_sq);
 
+  /* Code here messes with shared variables */
+  /* Should make it critical for openMP*/
   sum_speed_sq += speed_sq;
   max_acc = MAX(max_acc, cur_acc);
   max_speed = MAX(max_speed, cur_speed);
 
+  /* Code here messes with the tree */
+  /* Should make it critical for openMP*/
   p->node = NULL;
   if(p->x_pos < new_root->x_min ||
      p->x_pos > new_root->x_max ||
@@ -197,7 +211,7 @@ void all_move_particles(double step)
   compute_force_in_node(root);
 
   node_t* new_root = malloc(sizeof(node_t));
-  init_node(new_root, NULL, XMIN, XMAX, YMIN, YMAX);
+  init_node(new_root, NULL, XMIN, XMAX, YMIN, YMAX); // COntains a recursive call / No need to parallelize imo
 
   /* then move all particles and return statistics */
   move_particles_in_node(root, step, new_root);
@@ -233,6 +247,8 @@ void run_simulation() {
 }
 
 /* create a quad-tree from an array of particles */
+/* From disorganised array, we are going to create a quad tree here, which is O(nlogn) */
+/* Need a func to create a quad tree from a serialized array, which would be O(n) */
 void insert_all_particles(int nparticles, particle_t*particles, node_t*root) {
   int i;
   for(i=0; i<nparticles; i++) {
@@ -255,6 +271,10 @@ int main(int argc, char**argv)
   init();
 
   /* Allocate global shared arrays for the particles data set. */
+  /* Could be very interesting to use these to deserialize into a tree */
+  /* all_init_particles could be used to initialize particles from 
+  serialized tree (need to pass data on each particles) */
+  /* insert_all_particles could be used as-is to create our tree */
   particles = malloc(sizeof(particle_t)*nparticles);
   all_init_particles(nparticles, particles);
   insert_all_particles(nparticles, particles, root);
@@ -268,12 +288,64 @@ int main(int argc, char**argv)
   struct timeval t1, t2;
   gettimeofday(&t1, NULL);
 
+  // Put MPI initialization and finalization
+  // in-between main simulation function
+  MPI_Init(&argc, &argv);
+
+  /* Setting up MPI variables */
+  MPI_Comm_size(MPI_COMM_WORLD, &N);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   /* Main thread starts simulation ... */
   run_simulation();
 
   gettimeofday(&t2, NULL);
 
+  if (rank == 0)
+  {
+
   double duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
+
+  // Should return array malloc'd to have
+  // nparticles serialized elements
+  int nodeCount = getNumNodes(root,nparticles);
+  printf("node count: %d\n",nodeCount);
+  double* serializedTree = NULL;
+  serializedTree = (double*) printLevelOrder(root,nparticles,nodeCount);
+  
+  if (serializedTree)
+  {
+    int k;
+    int o = 0;
+    int j = 0;
+    for(k=0;k<nodeCount*15;k+=15)
+    {
+      if(serializedTree[k+9]==0.0)
+      {
+        //printf("NODE\n");
+        o++;
+      }
+      else
+      {
+        //printf("NODE+PARTICLE\n");
+        j++;
+      }
+      //printf("particle={pos=(%f,%f), vel=(%f,%f)}\n", p->x_pos, p->y_pos, p->x_vel, p->y_vel);
+      //printf("%f\n",serializedTree[k]);
+    }
+
+    printf("Nodes Alone: %d, Nodes + Particles: %d, Total Nodes: %d\n", o, j, o+j);
+    array_to_tree(nodeCount, nparticles, serializedTree);
+    //Should free returned array
+    //Should free it every iteration
+    free(serializedTree);
+  }
+  
+  
+  // How to deserialize a tree ?
+
+  
+  printf("Pass\n");
 
 #ifdef DUMP_RESULT
   FILE* f_out = fopen("particles.log", "w");
@@ -287,6 +359,9 @@ int main(int argc, char**argv)
   printf("T_FINAL: %f\n", T_FINAL);
   printf("-----------------------------\n");
   printf("Simulation took %lf s to complete\n", duration);
+  }
+
+  MPI_Finalize();
 
 #ifdef DISPLAY
   node_t *n = root;

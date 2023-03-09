@@ -2,6 +2,13 @@
 #define NBODY_TOOLS_H
 #include "nbody.h"
 
+ /* frunction prototypes for level order traversal*/
+void enQueue(node_t**, int*, node_t*);
+node_t* deQueue(node_t**, int*);
+double* printLevelOrder(node_t* root, int numParticles, int numNodes);
+int getNumNodes(node_t* root, int numParticles);
+void array_to_tree(int numNodes, int numParticles, double* serializedTree);
+
 /* draw recursively the content of a node */
 void draw_node(node_t* n);
 

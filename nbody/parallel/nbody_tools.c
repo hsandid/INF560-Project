@@ -48,6 +48,205 @@ void draw_node(node_t* n) {
 #endif
 }
 
+ 
+ // CODE COPIED FROM https://www.geeksforgeeks.org/level-order-tree-traversal/
+ // ALL CREDITS DUE FOR LEVEL ORDER TRAVERSAL ALGORITHM
+ // MODIFIED HERE TO SUIT 4-NARY TRAVERSAL
+ // Main motivation in using queue rather than recursive traversal: O(n^2) vs O(n)
+
+int getNumNodes(node_t* root, int numParticles)
+{
+   int rear, front;
+    node_t** queue = NULL;
+
+    if(numParticles>=130)
+    {
+      queue = (struct node**)malloc(
+    sizeof(struct node_t*) * numParticles* 4);
+    }
+    else
+    {
+      queue = (struct node**)malloc(
+    sizeof(struct node_t*) * 1000);
+    }
+    
+    front = rear = 0;
+    node_t* temp_node = root;
+ 
+    int countNodes = 0;
+    // Identify number of nodes early on ?
+    while (temp_node && queue != NULL) {
+
+        countNodes++;
+  
+      if(temp_node->children) {
+        int i;
+        for(i=0; i<4; i++) {
+          enQueue(queue, &rear, &temp_node->children[i]);
+        }
+      }
+ 
+        /*Dequeue node and make it temp_node*/
+        temp_node = deQueue(queue, &front);
+    }
+
+     free(queue);
+     return countNodes;
+}
+
+/* Given a binary tree, print its nodes in level order
+   using array for implementing queue */
+double* printLevelOrder(node_t* root, int numParticles, int numNodes)
+{
+    
+    // Queue takes a very large allocation of memory (4*nparticles!) or crashes
+    // The crashing is due to the number of nodes being at least four times the number of particles..
+    // Makes very low level of particles (< 130) crash for some reason ?
+    // Anyways, if the number of particles is low, queue buffer is 1000 nodes wide to stop crashing 
+    // For low number of particles, I should stick to single CPU anyways and not call at all...
+    
+    //double check = root->n_particles + 0.0;
+    //printf("Double check//Num of nodes: %f\n", check);
+    // First Pass, get total number of nodes O(n)
+
+    //double* serializedTree = (double*) malloc(sizeof(double) * numParticles * 14);
+    
+    
+    
+    int rear, front;
+    node_t** queue = NULL;
+
+    // Second Pass, allocate array with known number of nodes, and save it O(n)
+    double* serializedTree = (double*) malloc(sizeof(double) * numNodes * 15);
+    printf("Nodes:  %d \n",numNodes);
+   
+     queue = NULL;
+     int indexSerializedTree = 0;
+    
+    queue = (struct node**)malloc(
+    sizeof(struct node_t*) * numNodes); // memleak ???
+    
+    front = rear = 0;
+    node_t* temp_node = root;
+ 
+    // Identify number of nodes early on ?
+    while (temp_node && queue != NULL) {
+        //printf("nparticles %d \n",temp_node->n_particles);
+          // For the nodes, could have a hasParticle check
+        serializedTree[indexSerializedTree] =  temp_node->n_particles +0.0; // casting to double
+        serializedTree[indexSerializedTree+1] = temp_node->x_min;
+        serializedTree[indexSerializedTree+2] = temp_node->x_max;
+        serializedTree[indexSerializedTree+3] = temp_node->y_min;
+        serializedTree[indexSerializedTree+4] = temp_node->y_max;
+        serializedTree[indexSerializedTree+5] = temp_node->depth + 0.0;
+        serializedTree[indexSerializedTree+6] = temp_node->mass;
+        serializedTree[indexSerializedTree+7] = temp_node->x_center;
+        serializedTree[indexSerializedTree+8] = temp_node->y_center;
+          if(temp_node->particle) {
+        // Don't re-invent the wheel
+        // get particle and node info
+        // Serialize properly
+        particle_t*p = temp_node->particle;
+      
+        serializedTree[indexSerializedTree+9] = 1.0;
+        serializedTree[indexSerializedTree+10] = p->x_pos;
+        serializedTree[indexSerializedTree+11] = p->y_pos;
+        serializedTree[indexSerializedTree+12] = p->x_vel;
+        serializedTree[indexSerializedTree+13] = p->y_vel;
+        serializedTree[indexSerializedTree+14] = p->mass;
+      }
+      else
+      {
+        serializedTree[indexSerializedTree+9] = 0.0;
+      }
+
+      indexSerializedTree += 15;
+
+      //printf("particle={pos=(%f,%f), vel=(%f,%f)}\n", p->x_pos, p->y_pos, p->x_vel, p->y_vel);
+
+      if(temp_node->children) {
+        int i;
+        for(i=0; i<4; i++) {
+          enQueue(queue, &rear, &temp_node->children[i]);
+        }
+      }
+        //printf("%d ", temp_node->x_center);
+ 
+        /*Dequeue node and make it temp_node*/
+        temp_node = deQueue(queue, &front);
+    }
+
+    
+    //printf("Particles:  %d \n",countingValue1);
+    // Freeing allocated memory
+    free(queue);
+    
+    //free(temp_node);
+    return serializedTree;
+}
+
+
+void enQueue(node_t** queue, int* rear,
+            node_t* new_node)
+{
+    queue[*rear] = new_node;
+    (*rear)++;
+}
+
+node_t* deQueue(node_t** queue, int* front)
+{
+    (*front)++;
+    return queue[*front - 1];
+}
+
+
+
+
+// END OF COPIED CODE
+
+/* Deserialize array, and obtain a tree of particles*/
+/* Should return a pointer to root */
+/* Freeing memory ? */
+/* num of particles changing between iterations*/
+void array_to_tree(int numNodes, int numParticles, double* serializedTree)
+{
+  // First step: Transform serializedTree into array of particles
+  node_t*nodeHeap;
+  nodeHeap = malloc(sizeof(node_t)*numNodes);
+   int i;
+  // // Proceeding in a reverse loop (from numParticles to 0)
+  // // to setup root relationships with children
+  for(i=(numNodes-1);i>=0;i--)
+  {
+    node_t *temp_node = &nodeHeap[i];
+    temp_node->n_particles  = serializedTree[i*15];
+    temp_node->x_min = serializedTree[i*15+1];
+    temp_node->x_max = serializedTree[i*15+2];
+    temp_node->y_min = serializedTree[i*15+3];
+    temp_node->y_max = serializedTree[i*15+4];
+    temp_node->depth = serializedTree[i*15+5]; 
+    temp_node->mass = serializedTree[i*15+6];
+    temp_node->x_center = serializedTree[i*15+7];
+    temp_node->y_center = serializedTree[i*15+8];
+
+    // if(i*4<numNodes)
+    // {
+    //   temp_node->children = malloc(sizeof(node_t*)*4);
+    //   temp_node->children[0] = nodeHeap[i*4+1];
+    //   temp_node->children[1] = nodeHeap[i*4+2];
+    //   temp_node->children[2] = nodeHeap[i*4+3];
+    //   temp_node->children[3] = nodeHeap[i*4+4];
+    // }
+
+    //insert_particle(particle, root);
+  }
+  //free(particlesHeap);
+  // Return root
+  //return nodeHeap[0];
+  // Second step: Recursively initialize Tree from array of particles
+  // using 4-nary heap property, and return array of particles from function
+  // Root can be deduced to be at index zero
+}
 
 /* print recursively the particles of a node */
 void print_particles(FILE* f, node_t*n) {
@@ -66,6 +265,8 @@ void print_particles(FILE* f, node_t*n) {
     }
   }
 }
+
+
 
 /* Initialize a node */
 void init_node(node_t* n, node_t* parent, double x_min, double x_max, double y_min, double y_max) {
@@ -144,6 +345,7 @@ void insert_particle(particle_t* particle, node_t*node) {
     assert(node->children == NULL);
 
     /* there's no particle. insert directly */
+    /* Case for the root node !!!! */
     node->particle = particle;
     node->n_particles++;
 
@@ -151,6 +353,7 @@ void insert_particle(particle_t* particle, node_t*node) {
     node->y_center = particle->y_pos;
     node->mass = particle->mass;
 
+    // Create a link particle(node) <--> node
     particle->node = node;
     assert(node->children == NULL);
     return;
