@@ -19,7 +19,7 @@
   - MPI: No root process / Have multiple processes, with each process generating a tree-like structure associated with the Barnes Hut algorithm at the first step / At each following step, each process will calculate the force applied to its designated set of particles, update the tree structure accordingly with its calculated particles forces, then broadcast its tree and particles changes to other processes, and simultaneously receive changes from other processes on associated particles and update its tree.
 
 
-BEST CUDA APPROACH: 1 MPI RANK PER COMPUTE NODE, USE STREAMS WITH OPENMP TO AVOID SERIALIZATION
+NOT RELEVANT: BEST CUDA APPROACH: 1 MPI RANK PER COMPUTE NODE, USE STREAMS WITH OPENMP TO AVOID SERIALIZATION
 ONLY WORTH IT TO USE CUDA PARALLELIZATION FOR A LARGE ENOUGH DATA SIZE
 COULD SPLIT PART OF THE WORK BETWEEN CPU (OpenMP) AND GPU (CUDA)
 AVOID STREAMS!
@@ -85,6 +85,7 @@ for(i=0; i < nparticles; i++) {
         - Replicating the particles on all the MPI ranks is probably the easiest solution for parallelizing this implementation
         - The number of steps depends on the speed of the particles.
     - Barnes-Hut implementation
+        - (NOTE) Serialize the tree to make it easy for MPI and CUDA !
         - This implementation may be difficult to parallelize using MPI
         - You should replicate all the particles on all the MPI ranks
         - Balancing the processing load across the MPI ranks is the difficult part
