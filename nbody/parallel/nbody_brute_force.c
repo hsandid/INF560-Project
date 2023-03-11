@@ -74,7 +74,7 @@ void compute_force(particle_t *p, double x_pos, double y_pos, double mass)
 }
 
 /* compute the new position/velocity */
-void move_particle(particle_t *p, double step)
+void move_particle(particle_t *p, double step, double* tempAcc, double* tempSpeed)
 {
   // Parallelism Notes: Shared variable written to here
   // NVIDIA parallelism..
@@ -91,13 +91,17 @@ void move_particle(particle_t *p, double step)
   cur_acc = sqrt(cur_acc);
   double speed_sq = (p->x_vel) * (p->x_vel) + (p->y_vel) * (p->y_vel);
   double cur_speed = sqrt(speed_sq);
+  sum_speed_sq += speed_sq;
 
-  #pragma omp critical
-  {
-    sum_speed_sq += speed_sq;
-    max_acc = MAX(max_acc, cur_acc);
-    max_speed = MAX(max_speed, cur_speed);
-  }
+  *tempAcc = MAX(*tempAcc, cur_acc);
+  *tempSpeed = MAX(*tempSpeed, cur_speed);
+
+  // #pragma omp critical
+  // {
+    
+  //   max_acc = MAX(max_acc, cur_acc);
+  //   max_speed = MAX(max_speed, cur_speed);
+  // }
   
 }
 
@@ -171,21 +175,20 @@ void all_move_particles(double step)
    #pragma omp  for  private(i) schedule(static) 
     for (i = 0; i < nparticles; i++)
     {
-      move_particle(&particles[i], step);
+      move_particle(&particles[i], step, &tempAcc, &tempSpeed);
     }
 
-    #pragma omp  for  private(i)  schedule(static) 
-    for (i = 0; i < nparticles; i++)
-    {
-      double x_acc = particles[i].x_force / particles[i].mass;
-      double y_acc = particles[i].y_force / particles[i].mass;
-      double cur_acc = (x_acc * x_acc + y_acc * y_acc);
-      cur_acc = sqrt(cur_acc);
-      double speed_sq = (particles[i].x_vel) * (particles[i].x_vel) + (particles[i].y_vel) * (particles[i].y_vel);
-      double cur_speed = sqrt(speed_sq);
-      tempAcc = MAX(tempAcc, cur_acc);
-      tempSpeed = MAX(tempSpeed, cur_speed);
-    }
+    // #pragma omp  for  private(i)  schedule(static) 
+    // for (i = 0; i < nparticles; i++)
+    // {
+    //   double x_acc = particles[i].x_force / particles[i].mass;
+    //   double y_acc = particles[i].y_force / particles[i].mass;
+    //   double cur_acc = (x_acc * x_acc + y_acc * y_acc);
+    //   cur_acc = sqrt(cur_acc);
+    //   double speed_sq = (particles[i].x_vel) * (particles[i].x_vel) + (particles[i].y_vel) * (particles[i].y_vel);
+    //   double cur_speed = sqrt(speed_sq);
+      
+    // }
   }
 
   max_acc = tempAcc;
