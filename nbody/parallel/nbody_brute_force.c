@@ -155,7 +155,9 @@ void all_move_particles(double step)
 
   MPI_Allgather(partsBuffer, (nparticles / N) * 2, MPI_DOUBLE, partsBufferRecv, (nparticles / N) * 2, MPI_DOUBLE, MPI_COMM_WORLD);
 
- #pragma omp parallel default(none) shared(particles, partsBufferRecv, nparticles, N, step,max_acc,max_speed,sum_speed_sq)
+  double tempAcc = max_acc;
+  double tempSpeed = max_speed;
+ #pragma omp parallel default(none) reduction (max:tempAcc,tempSpeed) shared(particles, partsBufferRecv, nparticles, N, step,max_acc,max_speed,sum_speed_sq)
    {
     #pragma omp for private(i) schedule(static) 
     for (i = 0; i < (nparticles / N) * N; i++)
@@ -171,7 +173,29 @@ void all_move_particles(double step)
     {
       move_particle(&particles[i], step);
     }
+
+    #pragma omp  for  private(i)  schedule(static) 
+    for (i = 0; i < nparticles; i++)
+    {
+      double x_acc = particles[i].x_force / particles[i].mass;
+      double y_acc = particles[i].y_force / particles[i].mass;
+      double cur_acc = (x_acc * x_acc + y_acc * y_acc);
+      cur_acc = sqrt(cur_acc);
+      double speed_sq = (particles[i].x_vel) * (particles[i].x_vel) + (particles[i].y_vel) * (particles[i].y_vel);
+      double cur_speed = sqrt(speed_sq);
+      tempAcc = MAX(tempAcc, cur_acc);
+      tempSpeed = MAX(tempSpeed, cur_speed);
+    }
   }
+
+  max_acc = tempAcc;
+  max_speed = tempSpeed;
+
+  // if(tempAcc!=max_acc)
+  // {
+  //   printf("TempAcc vs Acc\n%f %f\n",tempAcc,max_acc);
+  // }
+  
   }
 
 /* display all the particles */
