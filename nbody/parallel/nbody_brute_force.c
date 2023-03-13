@@ -49,7 +49,10 @@ int endIndex;
 int numParticles;
 int *displsArray;
 
-extern void helloThere();
+/* CUDA variables */
+int nbGPU;
+
+extern void GPUComputeForce();
 
 void init()
 {
@@ -136,7 +139,14 @@ void all_move_particles(double step)
   // Make it generalized I would say
 
   
-
+  // Check there is at least one GPU
+  // First: Do loop to compute the particles, should have it parallel to OpenMP
+  // so execute it within single thread of OpenMP
+  if(nbGPU)
+  {
+    //printf("Number of GPUs on node for this MPI Rank node:  %d\n ",nbGPU);
+    //GPUComputeForce();
+  }
   
 
 #pragma omp parallel default(none) shared(particles, partsBuffer, nparticles, N, rank,commonVal,endIndex) 
@@ -175,6 +185,9 @@ void all_move_particles(double step)
   //     }
   //   }
   // }
+
+  // Might be useful for CUDA
+  // cudaThreadSynchronize();
 
   // Here we'd like to use Allgatherv
   // What needs to be changed ?
@@ -217,6 +230,9 @@ void all_move_particles(double step)
     // }
   }
 
+  // Might be useful for CUDA
+  // cudaThreadSynchronize();
+
   max_acc = tempAcc;
   max_speed = tempSpeed;
 
@@ -251,6 +267,13 @@ void print_all_particles(FILE *f)
 
 void run_simulation()
 {
+
+  GPUComputeForce();
+  
+  nbGPU = 0;
+  cudaGetDeviceCount(&nbGPU);
+  cudaSetDevice (rank % nbGPU);
+  
 
   commonVal = (nparticles / N) * (rank);
   endIndex = 0;
@@ -360,8 +383,6 @@ int main(int argc, char **argv)
 
   struct timeval t1, t2;
   gettimeofday(&t1, NULL);
-
-  helloThere();
   // Put MPI initialization and finalization
   // in-between main simulation function
   MPI_Init(&argc, &argv);
