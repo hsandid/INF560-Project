@@ -185,6 +185,11 @@ void all_move_particles(double step)
     #pragma omp for private(i) schedule(static) 
     for (i = 0; i < nparticles; i++)
     {
+      // if(i==nparticles-1 )
+      // {
+      //   printf("%f %f\n",partsBufferRecv[i * 2],partsBufferRecv[i * 2+1]);
+      // }
+      
       particles[i].x_force = partsBufferRecv[i * 2];
       particles[i].y_force = partsBufferRecv[i * 2 + 1];
     }
@@ -251,22 +256,26 @@ void run_simulation()
 
   if(rank==(N-1))
   { 
-    partsBuffer = (double *)malloc(sizeof(double) * 2 * (nparticles / N));
-    endIndex = (nparticles / N) * (rank + 1);
-    numParticles = (nparticles / N);
-  }
-  else
-  {
     partsBuffer = (double *)malloc(sizeof(double) * 2 * ((nparticles / N)+(nparticles%N)));
     endIndex = (nparticles / N) * (rank + 1) + nparticles%N;
     numParticles = (nparticles / N) + nparticles%N;
+    //printf("Rank %d Buffer size %d\n",rank,2 * ((nparticles / N)+(nparticles%N)));
+  }
+  else
+  {
+    partsBuffer = (double *)malloc(sizeof(double) * 2 * (nparticles / N));
+    endIndex = (nparticles / N) * (rank + 1);
+    numParticles = (nparticles / N);
+    //printf("Rank %d Buffer size %d\n",rank,2 * ((nparticles / N)));
   }
   
   
   partsBufferRecv = (double *)malloc(sizeof(double) * 2 * nparticles);
 
-  sizeBuffers = (int)malloc(sizeof(int)*N);
-  displsArray = (int)malloc(sizeof(int)*N);
+  //printf("Rank %d Big Buffer size %d\n",rank,2 * nparticles);
+
+  sizeBuffers = malloc(sizeof(int)*N);
+  displsArray = malloc(sizeof(int)*N);
 
   int k;
   for (k=0; k<N; k++)
@@ -283,6 +292,15 @@ void run_simulation()
     
     displsArray[k] = ((nparticles / N)*k)*2;
   }
+
+  //    for (k=0; k<N; k++)
+  // {
+  //    printf("Rank %d sizebuf %d, displsArr %d\n", rank, sizeBuffers[k], displsArray[k]);
+    
+  // }
+
+   //printf("Rank %d Numparticles %d endIndex %d\n", rank,numParticles, endIndex);
+ 
 
   double t = 0.0, dt = 0.01;
   while (t < T_FINAL && nparticles > 0)
@@ -308,6 +326,8 @@ void run_simulation()
   /* Free MPI particle buffers */
   free(partsBuffer);
   free(partsBufferRecv);
+  free(sizeBuffers);
+  free(displsArray);
 }
 
 /*
