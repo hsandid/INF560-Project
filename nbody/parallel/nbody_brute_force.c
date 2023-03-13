@@ -49,6 +49,8 @@ int endIndex;
 int numParticles;
 int *displsArray;
 
+extern void helloThere();
+
 void init()
 {
   /* Nothing to do */
@@ -359,6 +361,7 @@ int main(int argc, char **argv)
   struct timeval t1, t2;
   gettimeofday(&t1, NULL);
 
+  helloThere();
   // Put MPI initialization and finalization
   // in-between main simulation function
   MPI_Init(&argc, &argv);
