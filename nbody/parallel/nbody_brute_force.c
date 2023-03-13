@@ -38,9 +38,16 @@ double max_speed = 0;
 double *partsBuffer;
 double *partsBufferRecv;
 
+
 /* MPI Variables */
 int N = 1;
 int rank = 0;
+
+int *sizeBuffers;
+int commonVal;
+int endIndex;
+int numParticles;
+int *displsArray;
 
 void init()
 {
@@ -119,12 +126,21 @@ void all_move_particles(double step)
   // MPI-related variables
   
   // Help normalize data region worked on from [X..Y] to [0..X-Y]
-  int commonVal = (nparticles / N) * (rank);
 
-#pragma omp parallel default(none) shared(particles, partsBuffer, nparticles, N, rank,commonVal) 
+  // Should allocate array for array sizes to be sent (do it once, watch for edge case)
+  // Should allocate array for particles handled by each MPI rank (do once, watch for edge case)
+  // Allocated particles buffer should be N particles, not (N/npartciles)*N
+  // Have special case for last rank, if there are still particles, it should handle processing
+  // Make it generalized I would say
+
+  
+
+  
+
+#pragma omp parallel default(none) shared(particles, partsBuffer, nparticles, N, rank,commonVal,endIndex) 
 {
-#pragma omp for schedule(static) private(i) 
-    for (i = (nparticles / N) * (rank); i < (nparticles / N) * (rank + 1); i++)
+    #pragma omp for schedule(static) private(i) 
+    for (i = (nparticles / N) * (rank); i < endIndex; i++)
     {
       
       int j;
@@ -141,30 +157,33 @@ void all_move_particles(double step)
     }
   }
 
-  if (nparticles % N != 0)
-  {
-    for (i = (nparticles / N) * (N); i < nparticles; i++)
-    {
-      int j;
-      particles[i].x_force = 0;
-      particles[i].y_force = 0;
-      for (j = 0; j < nparticles; j++)
-      {
-        particle_t *p = &particles[j];
-        /* compute the force of particle j on particle i */
-        compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
-      }
-    }
-  }
 
-  MPI_Allgather(partsBuffer, (nparticles / N) * 2, MPI_DOUBLE, partsBufferRecv, (nparticles / N) * 2, MPI_DOUBLE, MPI_COMM_WORLD);
+  // if (nparticles % N != 0)
+  // {
+  //   for (i = (nparticles / N) * (N); i < nparticles; i++)
+  //   {
+  //     int j;
+  //     particles[i].x_force = 0;
+  //     particles[i].y_force = 0;
+  //     for (j = 0; j < nparticles; j++)
+  //     {
+  //       particle_t *p = &particles[j];
+  //       /* compute the force of particle j on particle i */
+  //       compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
+  //     }
+  //   }
+  // }
+
+  // Here we'd like to use Allgatherv
+  // What needs to be changed ?
+  MPI_Allgatherv(partsBuffer, numParticles * 2, MPI_DOUBLE, partsBufferRecv, sizeBuffers, displsArray, MPI_DOUBLE, MPI_COMM_WORLD);
 
   double tempAcc = max_acc;
   double tempSpeed = max_speed;
  #pragma omp parallel default(none) reduction (max:tempAcc,tempSpeed) shared(particles, partsBufferRecv, nparticles, N, step,max_acc,max_speed,sum_speed_sq)
    {
     #pragma omp for private(i) schedule(static) 
-    for (i = 0; i < (nparticles / N) * N; i++)
+    for (i = 0; i < nparticles; i++)
     {
       particles[i].x_force = partsBufferRecv[i * 2];
       particles[i].y_force = partsBufferRecv[i * 2 + 1];
@@ -226,8 +245,44 @@ void print_all_particles(FILE *f)
 void run_simulation()
 {
 
-  partsBuffer = (double *)malloc(sizeof(double) * 2 * (nparticles / N));
-  partsBufferRecv = (double *)malloc(sizeof(double) * 2 * ((nparticles / N) * N));
+  commonVal = (nparticles / N) * (rank);
+  endIndex = 0;
+  numParticles = 0;
+
+  if(rank==(N-1))
+  { 
+    partsBuffer = (double *)malloc(sizeof(double) * 2 * (nparticles / N));
+    endIndex = (nparticles / N) * (rank + 1);
+    numParticles = (nparticles / N);
+  }
+  else
+  {
+    partsBuffer = (double *)malloc(sizeof(double) * 2 * ((nparticles / N)+(nparticles%N)));
+    endIndex = (nparticles / N) * (rank + 1) + nparticles%N;
+    numParticles = (nparticles / N) + nparticles%N;
+  }
+  
+  
+  partsBufferRecv = (double *)malloc(sizeof(double) * 2 * nparticles);
+
+  sizeBuffers = (int)malloc(sizeof(int)*N);
+  displsArray = (int)malloc(sizeof(int)*N);
+
+  int k;
+  for (k=0; k<N; k++)
+  {
+    // For last rank only
+    if(k==N-1)
+    {
+      sizeBuffers[k] = ((nparticles / N)+ nparticles%N)*2;
+    }
+    else
+    {
+      sizeBuffers[k] = (nparticles / N)*2;
+    }
+    
+    displsArray[k] = ((nparticles / N)*k)*2;
+  }
 
   double t = 0.0, dt = 0.01;
   while (t < T_FINAL && nparticles > 0)
