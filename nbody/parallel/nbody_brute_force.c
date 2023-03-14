@@ -142,33 +142,86 @@ void all_move_particles(double step)
   // Check there is at least one GPU
   // First: Do loop to compute the particles, should have it parallel to OpenMP
   // so execute it within single thread of OpenMP
-  if(nbGPU)
-  {
-    //printf("Number of GPUs on node for this MPI Rank node:  %d\n ",nbGPU);
-    //GPUComputeForce();
-  }
+  // if(nbGPU)
+  // {
+  //   //printf("Number of GPUs on node for this MPI Rank node:  %d\n ",nbGPU);
+  //   //GPUComputeForce(particles, (nparticles / N) * (rank), (nparticles / N) * (rank)+0.8*numParticles,partsBuffer, 0);
+  // }
+
+  
   
 
-#pragma omp parallel default(none) shared(particles, partsBuffer, nparticles, N, rank,commonVal,endIndex) 
-{
-    #pragma omp for schedule(static) private(i) 
-    for (i = (nparticles / N) * (rank); i < endIndex; i++)
-    {
-      
-      int j;
-      particles[i].x_force = 0;
-      particles[i].y_force = 0;
-      for (j = 0; j < nparticles; j++)
-      {
-        particle_t *p = &particles[j];
-        /* compute the force of particle j on particle i */
-        compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
-      }
-      partsBuffer[(i-commonVal)*2] = particles[i].x_force;
-      partsBuffer[(i-commonVal)*2+1] = particles[i].y_force;
-    }
-  }
+// #pragma omp parallel default(none) shared(particles, partsBuffer, nparticles, N, rank,commonVal,endIndex, nbGPU, numParticles) 
+// {
 
+//     // #pragma omp master
+//     // {
+//     //   #pragma omp task
+//     //   {
+//     //     GPUComputeForce(particles, (nparticles / N) * (rank), (nparticles / N) * (rank)+(numParticles*8)/10+1,partsBuffer, 0);
+//     //     //printf("Hello World\n");
+//     //   }
+//     // }
+//     #pragma omp for schedule(static) private(i) 
+//     for (i = (nparticles / N) * (rank); i < endIndex; i++)
+//     {
+      
+//       int j;
+//       particles[i].x_force = 0;
+//       particles[i].y_force = 0;
+//       for (j = 0; j < nparticles; j++)
+//       {
+//         particle_t *p = &particles[j];
+//         /* compute the force of particle j on particle i */
+//         compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
+//       }
+//       partsBuffer[(i-commonVal)*2] = particles[i].x_force;
+//       partsBuffer[(i-commonVal)*2+1] = particles[i].y_force;
+//     }
+    
+    
+//   }
+
+// double* mybuffer;
+// if(rank==(N-1))
+//   { 
+//     mybuffer = (double *)malloc(sizeof(double) * 2 * ((nparticles / N)+(nparticles%N)));
+//   }
+//   else
+//   {
+//     mybuffer = (double *)malloc(sizeof(double) * 2 * (nparticles / N));
+//   }
+
+//GPUComputeForce(particles, (nparticles / N) * (rank), endIndex,partsBuffer, 0);
+GPUComputeForce(particles, nparticles, (nparticles / N) * (rank), endIndex,partsBuffer, commonVal);
+
+// THE LOOP VALUE IS NOT PASSED TO THE KERNEL
+// FUUUUUUU
+// int h;
+// for(h=0;h<numParticles;h++)
+// {
+//   printf(" %f %f\n",partsBuffer[h],mybuffer[h]);
+// }
+
+// free(mybuffer);
+//cudaThreadSynchronize();
+
+// printf("\n");
+// int z = 0;
+// for (z = 0;z<numParticles * 2;z+=2)
+// {
+//   printf("%f %f ",partsBuffer[z],partsBuffer[z+1]);
+// }
+
+// printf("\n");
+
+  // for (i = (nparticles / N) * (rank); i < (nparticles / N) * (rank)+10; i++)
+  //   {
+  //     partsBuffer[(i-commonVal)*2] = particles[i].x_force;
+  //     partsBuffer[(i-commonVal)*2+1] = particles[i].y_force;
+  //   }
+
+//GPUComputeForce(particles, (nparticles / N) * (rank), endIndex,partsBuffer, 0);
 
   // if (nparticles % N != 0)
   // {
@@ -187,11 +240,11 @@ void all_move_particles(double step)
   // }
 
   // Might be useful for CUDA
-  // cudaThreadSynchronize();
+  
 
   // Here we'd like to use Allgatherv
   // What needs to be changed ?
-  MPI_Allgatherv(partsBuffer, numParticles * 2, MPI_DOUBLE, partsBufferRecv, sizeBuffers, displsArray, MPI_DOUBLE, MPI_COMM_WORLD);
+   MPI_Allgatherv(partsBuffer, numParticles * 2, MPI_DOUBLE, partsBufferRecv, sizeBuffers, displsArray, MPI_DOUBLE, MPI_COMM_WORLD);
 
   double tempAcc = max_acc;
   double tempSpeed = max_speed;
@@ -268,12 +321,17 @@ void print_all_particles(FILE *f)
 void run_simulation()
 {
 
-  GPUComputeForce();
+  
+  
   
   nbGPU = 0;
   cudaGetDeviceCount(&nbGPU);
   cudaSetDevice (rank % nbGPU);
   
+  // if(rank==0)
+  // {
+  //   GPUComputeForce(particles, 0, nparticles);
+  // }
 
   commonVal = (nparticles / N) * (rank);
   endIndex = 0;

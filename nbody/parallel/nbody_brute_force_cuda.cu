@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "nbody.h"
 
 // CUDA runtime
 //#include <cuda_runtime.h>
@@ -22,21 +23,21 @@ __global__ void vecAddThreeKernel(char *a, char *b, char *c, char *res, int N)
     }
 }
 
-__global__ void kernComputeForces(double*cuda_xpos_array, double*cuda_ypos_array, double*cuda_mass_array, double*cuda_xforce,double*cuda_yforce,int size)
+__global__ void kernComputeForces(double*cuda_xpos_array, double*cuda_ypos_array, double*cuda_mass_array, double*cuda_xforce,double*cuda_yforce,int totalsize, int startindex, int endindex, int qtyparticles, int commonVal)
 {
     int i;
     i = blockIdx.x * blockDim.x + threadIdx.x;
     //int j;
     //j = blockDim.y * blockIdx.y + threadIdx.y;
     
-    if (i<size)
+    if (i>= startindex && i<endindex)
     {
     int j;
-    for (j=0;j<size;j++)
+    for (j=0;j<totalsize;j++)
     {
         double x_sep, y_sep, dist_sq, grav_base;
 
-        printf("LOOP on INDEX %d PASS %d\n",i,j);
+        //printf("LOOP on INDEX %d PASS %d\n",i,j);
 
         x_sep = cuda_xpos_array[j] - cuda_xpos_array[i];
         y_sep =  cuda_ypos_array[j] - cuda_ypos_array[i];
@@ -72,21 +73,28 @@ __global__ void kernComputeForces(double*cuda_xpos_array, double*cuda_ypos_array
 //8: Return
 
 // int startIndex, int endIndex, particle_t *particleArray
-extern "C" void GPUComputeForce()
+extern "C" void GPUComputeForce(particle_t *particleArray, int totalNumParticles, int startIndex, int endIndex, double *partialBuffer, int commonVal)
 {
     // Save x coordinates int
-    double *xpos_array   =(double *) malloc(sizeof(double)*(5));
-    double * ypos_array = (double *)malloc(sizeof(double)*(5));
-    double * mass_array = (double *)malloc(sizeof(double)*(5));
-    double *xforce =  (double *)malloc(sizeof(double)*(5));
-    double *yforce = (double *) malloc(sizeof(double)*(5));
+    int qty_particles = endIndex - startIndex;
+    
+    double *xpos_array   =(double *) malloc(sizeof(double)*(totalNumParticles));
+    double * ypos_array = (double *)malloc(sizeof(double)*(totalNumParticles));
+    double * mass_array = (double *)malloc(sizeof(double)*(totalNumParticles));
+    double *xforce =  (double *)malloc(sizeof(double)*(totalNumParticles));
+    double *yforce = (double *) malloc(sizeof(double)*(totalNumParticles));
 
     int i;
-    for (i=0;i<5;i++)
+    for (i=0;i<totalNumParticles;i++)
     {
-        xpos_array[i] = i;
-        ypos_array[i] = i;
-        mass_array[i] = i;
+        //printf("Index %d\n", i);
+        xpos_array[i] = particleArray[i].x_pos;
+        ypos_array[i] = particleArray[i].y_pos;
+        mass_array[i] = particleArray[i].mass;
+    }
+
+    for (i=0;i<totalNumParticles;i++)
+    {
         xforce[i] = 0.0;
         yforce[i] = 0.0;
     }
@@ -100,32 +108,44 @@ extern "C" void GPUComputeForce()
 
     
 
-    cudaMalloc((void **)&cuda_xpos_array, 5*sizeof(double));
-    cudaMalloc((void **)&cuda_ypos_array, 5*sizeof(double));
-    cudaMalloc((void **)&cuda_mass_array,5*sizeof(double));
-    cudaMalloc((void **)&cuda_xforce, 5*sizeof(double));
-    cudaMalloc((void **)&cuda_yforce, 5*sizeof(double));
+    cudaMalloc((void **)&cuda_xpos_array, totalNumParticles*sizeof(double));
+    cudaMalloc((void **)&cuda_ypos_array, totalNumParticles*sizeof(double));
+    cudaMalloc((void **)&cuda_mass_array,totalNumParticles*sizeof(double));
+    cudaMalloc((void **)&cuda_xforce, totalNumParticles*sizeof(double));
+    cudaMalloc((void **)&cuda_yforce, totalNumParticles*sizeof(double));
 
-    cudaMemcpy(cuda_xpos_array, xpos_array, 5*sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(cuda_ypos_array, ypos_array, 5*sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(cuda_mass_array, mass_array, 5*sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(cuda_xpos_array, xpos_array, totalNumParticles*sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(cuda_ypos_array, ypos_array, totalNumParticles*sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(cuda_mass_array, mass_array, totalNumParticles*sizeof(double), cudaMemcpyHostToDevice);
 
-    kernComputeForces<<<2 , 5 >>>(cuda_xpos_array, cuda_ypos_array, cuda_mass_array, cuda_xforce, cuda_yforce, 5);
+    //printf("Hello from buff!\n");
+    kernComputeForces<<<(totalNumParticles/500)+1 , 500 >>>(cuda_xpos_array, cuda_ypos_array, cuda_mass_array, cuda_xforce, cuda_yforce, totalNumParticles, startIndex,endIndex, qty_particles, commonVal);
 
-    cudaMemcpy(xforce, cuda_xforce, 5*sizeof(double), cudaMemcpyDeviceToHost);
-    cudaMemcpy(yforce, cuda_yforce, 5*sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(xforce, cuda_xforce, totalNumParticles*sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(yforce, cuda_yforce, totalNumParticles*sizeof(double), cudaMemcpyDeviceToHost);
 
+    cudaDeviceSynchronize();
     //Create loop to pass into particles array
 
     // test loop
-    // for (i=0;i<50;i++)
-    // {
-    //     printf("%f %f \n",xforce[i], yforce[i]);
-    // }
+    int k;
+    k=0;
+    for (i=startIndex;i<endIndex;i++)
+    {
+        
+        particleArray[i].x_force = xforce[i];
+        particleArray[i].y_force = yforce[i];
+        //printf("Index %d\n", i);
+        partialBuffer[k*2] =  xforce[i];
+        partialBuffer[k*2+1] =  yforce[i];
+        k++;
+        //printf("%f %f \n",xforce[i], yforce[i]);
+    }
+    //printf("Milad\n");
     // Save x coordinates int
     cudaFree(cuda_xpos_array);
-    cudaFree( cuda_ypos_array);
-    cudaFree( cuda_mass_array);
+    cudaFree(cuda_ypos_array);
+    cudaFree(cuda_mass_array);
     cudaFree(cuda_xforce);
     cudaFree(cuda_yforce);
 }
