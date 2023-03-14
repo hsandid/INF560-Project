@@ -151,36 +151,37 @@ void all_move_particles(double step)
   
   
 
-// #pragma omp parallel default(none) shared(particles, partsBuffer, nparticles, N, rank,commonVal,endIndex, nbGPU, numParticles) 
-// {
+#pragma omp parallel default(none) shared(particles, partsBuffer, nparticles, N, rank,commonVal,endIndex, nbGPU, numParticles) 
+{
 
-//     // #pragma omp master
-//     // {
-//     //   #pragma omp task
-//     //   {
-//     //     GPUComputeForce(particles, (nparticles / N) * (rank), (nparticles / N) * (rank)+(numParticles*8)/10+1,partsBuffer, 0);
-//     //     //printf("Hello World\n");
-//     //   }
-//     // }
-//     #pragma omp for schedule(static) private(i) 
-//     for (i = (nparticles / N) * (rank); i < endIndex; i++)
-//     {
+    #pragma omp master
+    {
+      #pragma omp task
+      {
+        //GPUComputeForce(particles, (nparticles / N) * (rank), (nparticles / N) * (rank)+(numParticles*8)/10+1,partsBuffer, 0);
+        GPUComputeForce(particles, nparticles, (nparticles / N) * (rank), (nparticles / N) * (rank)+(numParticles*8)/10, partsBuffer, commonVal);
+        //printf("Hello World\n");
+      }
+    }
+    #pragma omp for schedule(static) private(i) 
+    for (i = (nparticles / N) * (rank)+(numParticles*8)/10; i < endIndex; i++)
+    {
       
-//       int j;
-//       particles[i].x_force = 0;
-//       particles[i].y_force = 0;
-//       for (j = 0; j < nparticles; j++)
-//       {
-//         particle_t *p = &particles[j];
-//         /* compute the force of particle j on particle i */
-//         compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
-//       }
-//       partsBuffer[(i-commonVal)*2] = particles[i].x_force;
-//       partsBuffer[(i-commonVal)*2+1] = particles[i].y_force;
-//     }
+      int j;
+      particles[i].x_force = 0;
+      particles[i].y_force = 0;
+      for (j = 0; j < nparticles; j++)
+      {
+        particle_t *p = &particles[j];
+        /* compute the force of particle j on particle i */
+        compute_force(&particles[i], p->x_pos, p->y_pos, p->mass);
+      }
+      partsBuffer[(i-commonVal)*2] = particles[i].x_force;
+      partsBuffer[(i-commonVal)*2+1] = particles[i].y_force;
+    }
     
     
-//   }
+  }
 
 // double* mybuffer;
 // if(rank==(N-1))
@@ -193,7 +194,7 @@ void all_move_particles(double step)
 //   }
 
 //GPUComputeForce(particles, (nparticles / N) * (rank), endIndex,partsBuffer, 0);
-GPUComputeForce(particles, nparticles, (nparticles / N) * (rank), endIndex,partsBuffer, commonVal);
+
 
 // THE LOOP VALUE IS NOT PASSED TO THE KERNEL
 // FUUUUUUU
